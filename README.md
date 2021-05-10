@@ -1,5 +1,6 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
+<!-- README.md is generated from README.Rmd. Please edit that file -->
 
 Esta análise é resultado do Levantamento objeto do Processo TC
 707/2020-2 do Tribunal de Contas do Estado do Espírito Santo.
@@ -257,7 +258,7 @@ Essas obras dividem-se no território capixaba segundo o seguinte mapa:
 
 <div class="figure" style="text-align: center">
 
-<img src="README_files/figure-gfm/unnamed-chunk-6-1.png" alt="Obras paralisadas por município"  />
+<img src="README_files/figure-gfm/unnamed-chunk-7-1.png" alt="Obras paralisadas por município"  />
 <p class="caption">
 Obras paralisadas por município
 </p>
@@ -379,7 +380,7 @@ nos motivos apontados.
 
 <div class="figure" style="text-align: center">
 
-<img src="README_files/figure-gfm/unnamed-chunk-8-1.png" alt="Mapa de Palavras - Motivos"  />
+<img src="README_files/figure-gfm/unnamed-chunk-9-1.png" alt="Mapa de Palavras - Motivos"  />
 <p class="caption">
 Mapa de Palavras - Motivos
 </p>

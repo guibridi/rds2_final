@@ -1,43 +1,41 @@
-library(wordcloud)
-library(RColorBrewer)
-library(wordcloud2)
-library(tidyverse)
-library(janitor)
-library(tm)
+# library(wordcloud)
+# library(RColorBrewer)
+# library(wordcloud2)
+# library(tidyverse)
+# library(janitor)
+# library(tm)
 
 # Criando um vetor contendo apenas texto
 
 paralisadas <- readr::read_rds("data-raw/paralisadas.rds")
 
-glimpse(paralisadas)
+dplyr::glimpse(paralisadas)
 
 texto <- paralisadas$motivo
 
 # Criando um corpus
 
-docs <- Corpus(VectorSource(text))
+docs <- tm::Corpus(tm::VectorSource(texto))
 
 # Limpando os textos
 
 docs <- docs %>%
-  tm_map(removeNumbers) %>%
-  tm_map(removePunctuation) %>%
-  tm_map(stripWhitespace)
-docs <- tm_map(docs, content_transformer(tolower))
-docs <- tm_map(docs, removeWords, stopwords('portuguese'))
+  tm::tm_map(tm::removeNumbers) %>%
+  tm::tm_map(tm::removePunctuation) %>%
+  tm::tm_map(tm::stripWhitespace)
+docs <- tm::tm_map(docs, tm::content_transformer(tolower))
+docs <- tm::tm_map(docs, tm::removeWords, tm::stopwords('portuguese'))
 
 # Criando um "document-term-matrix" Matriz de termos do documento
 
-dtm <- TermDocumentMatrix(docs)
+dtm <- tm::TermDocumentMatrix(docs)
 matriz <- as.matrix(dtm)
 palavras <- sort(rowSums(matriz), decreasing = TRUE)
 df <- data.frame(word = names(palavras), freq = palavras)
 
-# Alternatively, and especially if you’re using tweets, you can use the tidytext package.
+# Criando o mapa de palavras
 
-# set.seed(1234) # for reproducibility
-
-wordcloud(
+wordcloud::wordcloud(
   words = df$word,
   freq = df$freq,
   min.freq = 5,
@@ -45,15 +43,15 @@ wordcloud(
   random.order = FALSE,
   rot.per = 0.35,
   scale = c(3.5, 0.25),
-  colors = brewer.pal(8, "Dark2")
+  colors = RColorBrewer::brewer.pal(8, "Dark2")
 )
 
 # Alternativamente, pode-se utilizar o pacote wordcloud2 (que é visualmente mais interessante)
 
-wordcloud2(data = df, size = 1.6, color = 'random-dark')
+wordcloud2::wordcloud2(data = df, size = 1.6, color = 'random-dark')
 
 
-wordcloud2(data = df, size = 0.5, shape = 'diamond')
+wordcloud2::wordcloud2(data = df, size = 0.5, shape = 'diamond')
 
 # wordcloud2(data = df, size = 1, minSize = 0, gridSize =  0,
 #            fontFamily = 'Segoe UI', fontWeight = 'bold',
