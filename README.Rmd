@@ -1,0 +1,211 @@
+---
+output: github_document
+always_allow_html: true
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+Esta análise é resultado do Levantamento objeto do Processo TC 707/2020-2 do Tribunal de Contas do Estado do Espírito Santo.
+
+Os documentos do processo podem ser consultados no seguinte endereço:
+
+<https://www.tcees.tc.br/consultas/processo/>
+
+***
+
+## Introdução
+
+O levantamento realizado teve por objetivo consolidar as informações referentes ao quantitativo de obras paralisadas, por jurisdicionado e por tipo de obra, os valores por fonte de recurso e os principais motivos das paralisações.
+
+Foram recebidos dados de obras paralisadas desde 2012 até 2020, quando foi realizado o levantamento.
+
+```{r include=FALSE}
+# Carregar os pacotes
+
+library(tidyverse)
+library(wordcloud)
+library(RColorBrewer)
+library(wordcloud2)
+library(janitor)
+library(tm)
+library(ggplot2)
+library(magrittr)
+library(sf)
+library(htmlwidgets)
+library(webshot)
+library(knitr)
+library(kableExtra)
+
+# Carregar a base de dados
+paralisadas <- read_rds("data-raw/paralisadas.rds")
+
+num_paralisadas <- sum(paralisadas$qtde_obras, na.rm = TRUE)
+```
+
+## Resultados
+
+Segundo o Levantamento, existem **`r num_paralisadas`** obras paralisadas no ES, divididas por Microrregião Administrativa conforme a tabela abaixo:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=TRUE, fig.align = "center"}
+paralisadas %>%
+  group_by(microrregiao) %>%
+  summarise(qtd_paralisadas = sum(qtde_obras, na.rm = TRUE)) %>%
+  arrange(desc(qtd_paralisadas)) %>%
+  knitr::kable(col.names = c("Microrregião", "Obras Paralisadas"),
+               align = "lr") %>%
+  kableExtra::kable_styling()
+
+```
+
+E a mesma quantidade, desta vez por Unidade Gestora (mostrando as 10 primeiras ocorrências):
+
+```{r echo=FALSE, fig.align = "center"}
+paralisadas %>%
+  group_by(unidade_gestora) %>%
+  summarise(
+    qtd_paralisadas = sum(qtde_obras, na.rm = TRUE),
+    vlr = sum(total_contratado, na.rm = TRUE)
+  ) %>%
+  arrange(desc(qtd_paralisadas)) %>%
+  mutate(vlr = scales::dollar(vlr / 1000000, prefix = "R$ ", decimal.mark = ",")) %>%
+  slice(1:10) %>%
+  knitr::kable(
+    col.names = c("Unidade Gestora", "Obras Paralisadas", "Valor total (milhões)"),
+    align = "lcr"
+  )
+```
+
+## Visualização dos dados
+
+Essas obras dividem-se no território capixaba segundo o seguinte mapa:
+
+```{r include=FALSE}
+
+# Importação do shapefile ----------
+
+arquivo <- "data-raw/shapefiles/idaf_limite_municipal_2018_11.shp"
+
+geo_es <- sf::read_sf(arquivo)
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.align = "center", fig.cap = "Obras paralisadas por município"}
+
+# Mapa, exemplo do geom_sf ---------
+
+paralisadas_geo <- paralisadas %>%
+  group_by(microrregiao, cidade, cod_ibge) %>%
+  summarise(qtde = sum(qtde_obras, na.rm = TRUE))
+
+# Joins ----------
+
+paralisadas_geo <-
+  left_join(paralisadas_geo, geo_es, by = c("cod_ibge" = "cod_ibge"))
+
+# Tema do Mapa ------------
+
+no_axis <- theme(
+  axis.title = element_blank(),
+  axis.text = element_blank(),
+  axis.ticks = element_blank(),
+  panel.background = element_rect(fill = gray(0.85)),
+  # panel.grid.major = ggplot2::element_line(
+  #   color = gray(0.5),
+  #   linetype = "dashed",
+  #   size = 0.5
+  # ),
+  panel.grid.major = element_blank()
+)
+
+# Mapa ------------
+
+ggplot() +
+  geom_sf(data = geo_es, aes(geometry = geometry)) +
+  geom_sf(data = paralisadas_geo, aes(geometry = geometry, fill = qtde),) +
+  theme_minimal() +
+  coord_sf() +
+  labs(fill = "Quantidade de Obras") +
+  scale_y_continuous(breaks = 34:36) +
+  geom_text(label = paralisadas_geo$cidade, size = 20) +
+  no_axis
+
+
+```
+É possível verificar no mapa acima os municípios em tons de azul mais claros - aqueles que possuem maior quantidade de obras paralisadas: Vitória e Cariacica.
+
+O caso de Vitória deve ser analisado com cuidado, uma vez que várias obras do Governo do Estado estão localizadas no município, sem que isso signifique que são obras paralisadas de responsabilidade da Prefeitura Municipal de Vitória.
+
+
+## Motivos
+
+O levantamento questionou também os motivos para a paralisação das obras. Os principais motivos apontados pelos respondentes foram os seguintes:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+paralisadas %>%
+  group_by(motivo) %>%
+  summarise(qtd_paralisadas = sum(qtde_obras, na.rm = TRUE)) %>%
+  arrange(desc(qtd_paralisadas)) %>%
+  slice(1:10) %>%
+  knitr::kable(
+    col.names = c("Motivo", "Obras Paralisadas"),
+    knitr.kable.NA = "",
+    align = "lr"
+  )
+  
+```
+
+No gráfico a seguir é possível verificar as expressões mais frequentes nos motivos apontados.
+
+```{r echo=FALSE, fig.align = "center", fig.cap="Mapa de Palavras - Motivos", message=FALSE, warning=FALSE}
+
+text <- paralisadas$motivo
+
+docs <- Corpus(VectorSource(text))
+
+docs <- docs %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
+docs <- tm_map(docs, content_transformer(tolower))
+docs <- tm_map(docs, removeWords, stopwords('portuguese'))
+
+dtm <- TermDocumentMatrix(docs)
+matrix <- as.matrix(dtm)
+words <- sort(rowSums(matrix), decreasing = TRUE)
+df <- data.frame(word = names(words), freq = words)
+
+
+# install.packages("webshot")
+# webshot::install_phantomjs()
+# library(shiny)
+# div(
+hw <- wordcloud2(data = df, size = 0.5, shape = 'circle')
+# , align = "center")
+
+saveWidget(hw, "data-raw/1.html", selfcontained = F)
+webshot::webshot(
+  url = "data-raw/1.html",
+  file = "data-raw/1.png",
+  vwidth = 700,
+  vheight = 500,
+  delay = 10
+)
+```
+
+Ou seja, grande parte das paralisações de obras devem-se a problemas com as **Contratadas**. Por outro lado, é responsabilidade da Contratante a correta escolha das Contratadas, bem como a punição em caso de inadimplemento contratual.
+
+## Conclusões
+
+As obras paralisadas representam o maior insucesso de uma obra pública.
+
+Ainda que sobrepreço, superfaturamento ou direcionamento de licitações sejam irregularidades gravíssimas e passívels de punição, a obra inacabada - que por muitas vezes carrega parte das irregularidades citadas - traz um prejuízo maior à população, que não vê o recurso de seus impostos concretizado em uma escola, um posto de saúde, uma rua ou qualquer outra construção que possa ser utilizada.
+
+Desta forma, o Tribunal de Contas realizou esse levantamento para, em um primeiro momento, conhecer a realidade das obras paralisadas e, em um passo seguinte, orientar os órgãos públicos sobre como reduzir esse desperdício dos recursos públicos.
